@@ -12,6 +12,15 @@ type Grid struct {
 	data []byte
 }
 
+// Lookup table for Conway's Game of Life rules
+// Index: [currentState][neighborCount] -> nextState
+var rules = [2][9]byte{
+	// Dead cell (0): only becomes alive with exactly 3 neighbors
+	{0, 0, 0, 1, 0, 0, 0, 0, 0},
+	// Alive cell (1): stays alive with 2 or 3 neighbors
+	{0, 0, 1, 1, 0, 0, 0, 0, 0},
+}
+
 func check(e error) {
 	if e != nil {
 		panic(e)
@@ -31,12 +40,12 @@ func get_data() (Grid, int) {
 	data := make([]byte, h*w)
 
 	for y, line := range lines {
+		rowOffset := y * w
 		for x := 0; x < w; x++ {
 			if line[x] == 'X' {
-				data[y*w+x] = 1
-			} else {
-				data[y*w+x] = 0
+				data[rowOffset+x] = 1
 			}
+			// data[rowOffset+x] = 0 is implicit (zero value)
 		}
 	}
 	return Grid{w, h, data}, iterations
@@ -59,65 +68,91 @@ func printState(grid Grid) {
 
 func Step(current, next Grid) {
 	w, h := current.w, current.h
-	offsets1D := []int{-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1}
-	offsets2D := [8][2]int{
-		{-1, -1}, {-1, 0}, {-1, 1},
-		{0, -1}, {0, 1},
-		{1, -1}, {1, 0}, {1, 1},
-	}
+	data := current.data
+	nextData := next.data
 
+	// Process interior cells (no bounds checking needed)
 	for y := 1; y < h-1; y++ {
+		rowAbove := (y - 1) * w
+		rowCurrent := y * w
+		rowBelow := (y + 1) * w
+
 		for x := 1; x < w-1; x++ {
-			idx := y*w + x
-			liveNeighbors := 0
-			for _, offset := range offsets1D {
-				liveNeighbors += int(current.data[idx+offset])
-			}
-			next.data[idx] = updateCell(current.data[idx], liveNeighbors)
+			// Unrolled neighbor sum - direct array access
+			neighbors := int(data[rowAbove+x-1]) + int(data[rowAbove+x]) + int(data[rowAbove+x+1]) +
+				int(data[rowCurrent+x-1]) + int(data[rowCurrent+x+1]) +
+				int(data[rowBelow+x-1]) + int(data[rowBelow+x]) + int(data[rowBelow+x+1])
+
+			idx := rowCurrent + x
+			nextData[idx] = rules[data[idx]][neighbors]
 		}
 	}
 
-	// Process edges with bounds checks
-	// top and bottom rows
+	// Process edges and corners efficiently (each cell processed exactly once)
+
+	// Top and bottom rows
 	for x := 0; x < w; x++ {
-		for _, y := range []int{0, h - 1} {
-			idx := y*w + x
-			liveNeighbors := 0
-			for _, offset := range offsets2D {
-				nx, ny := x+offset[0], y+offset[1]
-				if nx >= 0 && nx < w && ny >= 0 && ny < h {
-					liveNeighbors += int(current.data[ny*w+nx])
+		// Top row
+		neighbors := 0
+		for dy := 0; dy <= 1; dy++ {
+			ny := dy
+			for dx := -1; dx <= 1; dx++ {
+				nx := x + dx
+				if nx >= 0 && nx < w && !(dx == 0 && dy == 0) {
+					neighbors += int(data[ny*w+nx])
 				}
 			}
-			next.data[idx] = updateCell(current.data[idx], liveNeighbors)
 		}
-	}
-	for y := 1; y < h-1; y++ {
-		for _, x := range []int{0, w - 1} {
-			idx := y*w + x
-			liveNeighbors := 0
-			for _, offset := range offsets2D {
-				nx, ny := x+offset[0], y+offset[1]
-				if nx >= 0 && nx < w && ny >= 0 && ny < h {
-					liveNeighbors += int(current.data[ny*w+nx])
-				}
-			}
-			next.data[idx] = updateCell(current.data[idx], liveNeighbors)
-		}
-	}
-}
+		nextData[x] = rules[data[x]][neighbors]
 
-func updateCell(cell byte, liveNeighbors int) byte {
-	if cell == 1 {
-		if liveNeighbors < 2 || liveNeighbors > 3 {
-			return 0
+		// Bottom row (skip if h == 1)
+		if h > 1 {
+			neighbors = 0
+			bottomIdx := (h-1)*w + x
+			for dy := -1; dy <= 0; dy++ {
+				ny := h - 1 + dy
+				for dx := -1; dx <= 1; dx++ {
+					nx := x + dx
+					if nx >= 0 && nx < w && !(dx == 0 && dy == 0) {
+						neighbors += int(data[ny*w+nx])
+					}
+				}
+			}
+			nextData[bottomIdx] = rules[data[bottomIdx]][neighbors]
 		}
-		return 1
-	} else {
-		if liveNeighbors == 3 {
-			return 1
+	}
+
+	// Left and right columns (excluding corners already processed)
+	for y := 1; y < h-1; y++ {
+		// Left column
+		neighbors := 0
+		leftIdx := y * w
+		for dy := -1; dy <= 1; dy++ {
+			ny := y + dy
+			for dx := 0; dx <= 1; dx++ {
+				nx := dx
+				if !(dx == 0 && dy == 0) {
+					neighbors += int(data[ny*w+nx])
+				}
+			}
 		}
-		return 0
+		nextData[leftIdx] = rules[data[leftIdx]][neighbors]
+
+		// Right column (skip if w == 1)
+		if w > 1 {
+			neighbors = 0
+			rightIdx := y*w + (w - 1)
+			for dy := -1; dy <= 1; dy++ {
+				ny := y + dy
+				for dx := -1; dx <= 0; dx++ {
+					nx := w - 1 + dx
+					if !(dx == 0 && dy == 0) {
+						neighbors += int(data[ny*w+nx])
+					}
+				}
+			}
+			nextData[rightIdx] = rules[data[rightIdx]][neighbors]
+		}
 	}
 }
 
@@ -130,10 +165,11 @@ func main() {
 	current, iterations := get_data()
 	next := Grid{current.w, current.h, make([]byte, current.h*current.w)}
 
-	var i int
-	_ = i
-	for i = range iterations {
+	for i := 0; i < iterations; i++ {
 		Step(current, next)
 		current, next = next, current
 	}
+
+	// Uncomment to print final state
+	// printState(current)
 }
