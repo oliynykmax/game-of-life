@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Grid struct {
@@ -12,12 +13,8 @@ type Grid struct {
 	data []byte
 }
 
-// Lookup table for Conway's Game of Life rules
-// Index: [currentState][neighborCount] -> nextState
 var rules = [2][9]byte{
-	// Dead cell (0): only becomes alive with exactly 3 neighbors
 	{0, 0, 0, 1, 0, 0, 0, 0, 0},
-	// Alive cell (1): stays alive with 2 or 3 neighbors
 	{0, 0, 1, 1, 0, 0, 0, 0, 0},
 }
 
@@ -56,9 +53,9 @@ func printState(grid Grid) {
 		rowStart := y * grid.w
 		for x := 0; x < grid.w; x++ {
 			if grid.data[rowStart+x] == 1 {
-				fmt.Print("1")
+				fmt.Print("X")
 			} else {
-				fmt.Print("0")
+				fmt.Print(".")
 			}
 		}
 		fmt.Println()
@@ -164,12 +161,14 @@ func main() {
 
 	current, iterations := get_data()
 	next := Grid{current.w, current.h, make([]byte, current.h*current.w)}
-
+	// fmt.Print("\033[H\033[2J")
+	// printState(current)
 	for i := 0; i < iterations; i++ {
 		Step(current, next)
 		current, next = next, current
+		// fmt.Print("\033[H\033[2J")
+		// printState(current)
+		// time.Sleep(200 * time.Millisecond) // or time.Second
 	}
 
-	// Uncomment to print final state
-	// printState(current)
 }
