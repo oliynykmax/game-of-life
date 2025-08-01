@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-//	"time"
+	// "time"
 )
 
 type Grid struct {
@@ -48,18 +48,20 @@ func get_data() (Grid, int) {
 }
 
 func printState(grid Grid) {
+	var b strings.Builder
 	for y := 0; y < grid.h; y++ {
 		rowStart := y * grid.w
 		for x := 0; x < grid.w; x++ {
 			if grid.data[rowStart+x] == 1 {
-				fmt.Print("X")
+				b.WriteByte('X')
 			} else {
-				fmt.Print(".")
+				b.WriteByte('.')
 			}
 		}
-		fmt.Println()
+		b.WriteByte('\n')
 	}
-	fmt.Println()
+	b.WriteByte('\n')
+	fmt.Print(b.String())
 }
 
 func Step(current, next Grid) {
