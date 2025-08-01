@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
+//	"time"
 )
 
 type Grid struct {
@@ -42,7 +42,6 @@ func get_data() (Grid, int) {
 			if line[x] == 'X' {
 				data[rowOffset+x] = 1
 			}
-			// data[rowOffset+x] = 0 is implicit (zero value)
 		}
 	}
 	return Grid{w, h, data}, iterations
